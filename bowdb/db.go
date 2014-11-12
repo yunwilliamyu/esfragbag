@@ -15,8 +15,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/TuftsBCB/fragbag"
-	"github.com/TuftsBCB/fragbag/bow"
+	"github.com/yunwilliamyu/fragbag"
+	"github.com/yunwilliamyu/fragbag/bow"
 )
 
 const (
@@ -38,7 +38,7 @@ type DB struct {
 
 	// The set of entries read from disk when reading a bow DB.
 	// This is populated by ReadAll.
-	entries     []bow.Bowed
+	Entries     []bow.Bowed
 	readAllLock *sync.Mutex // Protects concurrent calls of ReadAll
 
 	fileBuf *bufio.Reader // A buffer for reading the bow db.
@@ -105,10 +105,10 @@ func (db *DB) ReadAll() ([]bow.Bowed, error) {
 	db.readAllLock.Lock()
 	defer db.readAllLock.Unlock()
 
-	if db.entries != nil {
-		return db.entries, nil
+	if db.Entries != nil {
+		return db.Entries, nil
 	}
-	db.entries = make([]bow.Bowed, 0, 10000)
+	db.Entries = make([]bow.Bowed, 0, 10000)
 	for {
 		entry, err := db.read()
 		if err == io.EOF {
@@ -116,9 +116,9 @@ func (db *DB) ReadAll() ([]bow.Bowed, error) {
 		} else if err != nil {
 			return nil, err
 		}
-		db.entries = append(db.entries, *entry)
+		db.Entries = append(db.Entries, *entry)
 	}
-	return db.entries, nil
+	return db.Entries, nil
 }
 
 // Create creates a new BOW database on disk at 'dir'. If the directory

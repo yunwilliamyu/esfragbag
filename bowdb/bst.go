@@ -1,7 +1,7 @@
 package bowdb
 
 import (
-	"github.com/TuftsBCB/fragbag/bow"
+	"github.com/yunwilliamyu/fragbag/bow"
 )
 
 type bst struct {

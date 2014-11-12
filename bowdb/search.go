@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/TuftsBCB/fragbag/bow"
+	"github.com/yunwilliamyu/fragbag/bow"
 )
 
 const (
@@ -88,10 +88,10 @@ func newSearchResult(query, entry bow.Bowed) SearchResult {
 func (db *DB) Search(opts SearchOptions, query bow.Bowed) []SearchResult {
 	tree := new(bst)
 
-	if db.entries == nil {
+	if db.Entries == nil {
 		db.ReadAll()
 	}
-	for _, entry := range db.entries {
+	for _, entry := range db.Entries {
 		// Compute the distance between the query and the target.
 		var dist float64
 		switch opts.SortBy {
