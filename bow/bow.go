@@ -151,7 +151,7 @@ func (b Bow) String() string {
 	for i := 0; i < b.Len(); i++ {
 		freq := b.Freqs[i]
 		if freq > 0 {
-			pieces = append(pieces, fmt.Sprintf("%f: %f", i, freq))
+			pieces = append(pieces, fmt.Sprintf("%d: %f", i, freq))
 		}
 	}
 	return fmt.Sprintf("{%s}", strings.Join(pieces, ", "))
