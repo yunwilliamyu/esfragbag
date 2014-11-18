@@ -101,16 +101,13 @@ func main() {
     db.ReadAll()
     //Assert(err, "Could not open BOW database '%s'", path) 
     kCenters := metricKCenter(db.Entries, metric, numCenters)
-    for _, entry := range kCenters {
-       fmt.Println(entry.Id)
-       fmt.Println(entry.Bow.String())
-    }
-
 
     db_codes := make([]int,len(db.Entries))
+    distances := make([]float64,len(db.Entries))
     for j, entry := range db.Entries {
-        _, _, i := distanceFromSet (metric, entry, kCenters)
+        dist, _, i := distanceFromSet (metric, entry, kCenters)
         db_codes[j]=i
+        distances[j]=dist
         //fmt.Println(strconv.Itoa(i) + " " + strconv.Itoa(j) + " " + strconv.FormatFloat(dist,'f',5,32))
     }
 
@@ -123,14 +120,21 @@ func main() {
     }
     db_centers.Close()
 
+    cluster_radii := make([]float64,numCenters)
     for j, entry := range db.Entries {
         db_slices[db_codes[j]].Add(entry)
+        if distances[j] > cluster_radii[db_codes[j]] {
+            cluster_radii[db_codes[j]] = distances[j]
+        }
     }
 
     for _, slice := range db_slices {
         slice.Close()
     }
 
+    for j, entry := range kCenters {
+        fmt.Println(entry.Id + fmt.Sprintf(": %f", cluster_radii[j]))
+    }
 
 
 
