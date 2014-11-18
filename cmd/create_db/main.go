@@ -4,6 +4,8 @@ import (
     "flag"
     "log"
     "fmt"
+    //"strconv"
+    "math/rand"
 
     "github.com/yunwilliamyu/fragbag/bow"
     "github.com/yunwilliamyu/fragbag/bowdb"
@@ -21,7 +23,6 @@ var (
     metric = cosineDist
     numCenters = -1
     metricFlag = ""
-
 )
 
 
@@ -46,7 +47,7 @@ func init() {
 // approximation algorithm of iteratively choosing the furthest away point
 func metricKCenter(db []bow.Bowed, optDist distType, k int) []bow.Bowed {
     results := make([]bow.Bowed, k)
-    results[0] = db[0]
+    results[0] = db[rand.Intn(len(db))]
     for i := 1; i<k; i++ {
         results[i] = newKCenter(db, optDist, results[0:i])
     }
@@ -60,7 +61,7 @@ func newKCenter(db []bow.Bowed, optDist distType, prevKCenters []bow.Bowed) bow.
     for _, entry := range db {
         var dist float64
         dist, _, _ = distanceFromSet (optDist, entry, prevKCenters)
-        if dist > maxDist {
+        if (dist > maxDist)&&(entry.Bow.String()!="{}") {
             maxDist = dist
             bestResult = entry
         }
@@ -71,6 +72,7 @@ func newKCenter(db []bow.Bowed, optDist distType, prevKCenters []bow.Bowed) bow.
 // Computes the distance of a point from a set, the nearest set point, and the index of that point
 func distanceFromSet (optDist distType, query bow.Bowed, set []bow.Bowed) (float64, bow.Bowed, int) {
     var minDist float64
+    minDist = 1000000
     var bestResult bow.Bowed
     var bestIndex int
     for i, center := range set {
@@ -84,6 +86,7 @@ func distanceFromSet (optDist distType, query bow.Bowed, set []bow.Bowed) (float
             default:
                 panic(fmt.Sprintf("Unrecognized distType value: %d", optDist))
             }
+            //fmt.Println(fmt.Sprintf("%f",dist))
             if dist < minDist {
                 minDist = dist
                 bestResult = center
@@ -95,13 +98,39 @@ func distanceFromSet (optDist distType, query bow.Bowed, set []bow.Bowed) (float
 
 func main() {
     db, _ :=  bowdb.Open(fragmentLibraryLoc)
+    db.ReadAll()
     //Assert(err, "Could not open BOW database '%s'", path) 
     kCenters := metricKCenter(db.Entries, metric, numCenters)
-
-
-    for _, entry := range db.Entries {
-        _, i, _ := distanceFromSet (metric, entry, kCenters)
+    for _, entry := range kCenters {
+       fmt.Println(entry.Id)
+       fmt.Println(entry.Bow.String())
     }
+
+
+    db_codes := make([]int,len(db.Entries))
+    for j, entry := range db.Entries {
+        _, _, i := distanceFromSet (metric, entry, kCenters)
+        db_codes[j]=i
+        //fmt.Println(strconv.Itoa(i) + " " + strconv.Itoa(j) + " " + strconv.FormatFloat(dist,'f',5,32))
+    }
+
+    db_centers, _ := bowdb.Create(db.Lib, "centers.cluster.db")
+    db_slices := make([]*bowdb.DB,numCenters,numCenters)
+    for i, center := range kCenters {
+        tmp, _ := bowdb.Create(db.Lib, center.Id + ".cluster.db")
+        db_slices[i] = tmp
+        db_centers.Add(center)
+    }
+    db_centers.Close()
+
+    for j, entry := range db.Entries {
+        db_slices[db_codes[j]].Add(entry)
+    }
+
+    for _, slice := range db_slices {
+        slice.Close()
+    }
+
 
 
 
