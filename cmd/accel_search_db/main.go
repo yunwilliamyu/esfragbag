@@ -5,7 +5,6 @@ import (
     "log"
     "fmt"
     "time"
-    "os"
     "bytes"
     "io/ioutil"
     //"strconv"
@@ -31,7 +30,9 @@ var (
     metricFlag = ""
     potentialTargetsLoc = ""
     maxRadius = 0
+    clusterRadius = 10000
     lasttime = time.Now().UTC().UnixNano()
+    gobLoc = "clusters.gob"
 )
 
 
@@ -39,10 +40,12 @@ func init() {
     log.SetFlags(0)
 
     flag.StringVar(&fragmentLibraryLoc, "fragLib", fragmentLibraryLoc, "the location of the fragment library centers")
+    flag.StringVar(&gobLoc, "clusters", gobLoc, "the location of the serialized clusters database")
     flag.StringVar(&searchQuery, "searchQuery", searchQuery, "the search query library as a bowdb")
     flag.StringVar(&metricFlag, "metricFlag", metricFlag, "Choice of metric to use; valid options are 'cosine' and 'euclidean'")
     flag.StringVar(&potentialTargetsLoc, "potentialTargets", potentialTargetsLoc, "the location of the full fragment library database")
     flag.IntVar(&maxRadius, "maxRadius", maxRadius, "maximum radius to search in")
+    flag.IntVar(&clusterRadius, "clusterRadius", clusterRadius, "maximum cluster radius in database")
 
     flag.Parse()
 
@@ -68,22 +71,6 @@ func timer() int64 {
     return lasttime - old
 }
 
-func enc_gob_ss_db(db_slices [][]bow.Bowed, name string) {
-    f, err := os.Create(name)
-    defer f.Close()
-    if err != nil {
-        log.Fatal("Create file error:", err)
-    }
-    var buf bytes.Buffer
-    //buf := io.NewWriter(f)
-    enc := gob.NewEncoder(&buf)
-    err = enc.Encode(db_slices)
-    if err != nil {
-        log.Fatal("encode error:", err)
-    }
-    _, err = f.Write(buf.Bytes())
-}
-
 func dec_gob_ss_db(name string) [][]bow.Bowed {
     buf_bytes, err := ioutil.ReadFile(name)
     if err != nil {
@@ -91,7 +78,6 @@ func dec_gob_ss_db(name string) [][]bow.Bowed {
     }
     var buf bytes.Buffer
     buf.Write(buf_bytes)
-    //buf := io.NewWriter(f)
     var db_slices [][]bow.Bowed
     dec := gob.NewDecoder(&buf)
     err = dec.Decode(&db_slices)
@@ -104,47 +90,36 @@ func dec_gob_ss_db(name string) [][]bow.Bowed {
 func main() {
     rand.Seed(1)
 
+    fmt.Println("Loading query")
     db_query, _ := bowdb.Open(searchQuery)
     db_query.ReadAll()
     var query bow.Bowed
     query = db_query.Entries[0]
+    fmt.Println(fmt.Sprintf("\t%d",timer()))
 
-    fmt.Println(fmt.Sprintf("%d: Opening centers library",timer()))
+    fmt.Println(fmt.Sprintf("Opening centers library"))
     db_centers, _ :=  bowdb.Open(fragmentLibraryLoc)
     db_centers.ReadAll()
+    fmt.Println(fmt.Sprintf("\t%d",timer()))
 
-    fmt.Println(fmt.Sprintf("%d: Opening cluster libraries",timer()))
-    /*numCenters := len(db_centers.Entries)
-    db_slices := make([][]bow.Bowed,numCenters,numCenters)
-    for i, center := range db_centers.Entries {
-        tmp, err := bowdb.Open(center.Id + ".cluster.db")
-        if (err!=nil) {
-            fmt.Println(err)
-        }
-        tmp.ReadAll()
-        db_slices[i] = tmp.Entries
-        tmp.Close()
-    }
-
-    fmt.Println(fmt.Sprintf("%d: Serializing gob",timer()))
-    enc_gob_ss_db(db_slices,"clusters.gob")
-    */
-    fmt.Println(fmt.Sprintf("%d: Unserializing gob",timer()))
+    fmt.Println("Unserializing gob")
     db_slices := dec_gob_ss_db("clusters.gob")
     var m map[string]int
     m = make(map[string]int)
     for i, center := range db_centers.Entries {
         m[center.Id] = i
     }
+    fmt.Println(fmt.Sprintf("\t%d",timer()))
 
     sortBy := bowdb.SortByEuclid
     if metric == cosineDist {
         sortBy = bowdb.SortByCosine
     }
+
     var coarse_search = bowdb.SearchOptions{
         Limit:  -1,
         Min:    0.0,
-        Max:    (25+float64(maxRadius)),
+        Max:    (float64(clusterRadius)+float64(maxRadius)),
         SortBy: sortBy,
         Order:  bowdb.OrderAsc,
     }
@@ -157,17 +132,17 @@ func main() {
         Order:  bowdb.OrderAsc,
     }
 
-    fmt.Println(fmt.Sprintf("%d: Computing coarse results",timer()))
+    fmt.Println("Computing coarse results")
     var coarse_results []bowdb.SearchResult
     coarse_results = db_centers.Search(coarse_search, query)
-    fmt.Println(len(coarse_results))
+    coarse_results_time := timer()
+    fmt.Println(fmt.Sprintf("\t%d",coarse_results_time))
+    fmt.Println(fmt.Sprintf("\tCount: %d",len(coarse_results)))
 
-    fmt.Println(fmt.Sprintf("%d: Computing fine results",timer()))
+
+    fmt.Println("Computing fine results")
     var fine_results []bowdb.SearchResult
     for _, center := range coarse_results {
-        //tmp := db_slices[m[center.Id]].Search(fine_search, query)
-        //fine_results = append(fine_results,tmp...)
-        //center_db.Close()
         for _, entry := range db_slices[m[center.Id]] {
             var dist float64
             result := newSearchResult(query,entry)
@@ -182,25 +157,23 @@ func main() {
             }
         }
     }
-    fmt.Println(len(fine_results))
-/*
-    for _, entry := range fine_results {
-        fmt.Println(entry.Bowed.Id + fmt.Sprintf(" %f", entry.Euclid))
-    }
-*/
-    fmt.Println(fmt.Sprintf("%d: Opening long results database",timer()))
+    fine_results_time := timer()
+    fmt.Println(fmt.Sprintf("\t%d",fine_results_time))
+    fmt.Println(fmt.Sprintf("\tCount: %d",len(fine_results)))
+
+    fmt.Println("Opening long results database")
     db, _ := bowdb.Open(potentialTargetsLoc)
-    fmt.Println(fmt.Sprintf("%d: Computing long results",timer()))
+    db.ReadAll()
+    fmt.Println(fmt.Sprintf("\t%d",timer()))
+
+    fmt.Println("Computing long results")
     var long_results []bowdb.SearchResult
     long_results = db.Search(fine_search, query)
-    fmt.Println(len(long_results))
-    fmt.Println(fmt.Sprintf("%d: Finished",timer()))
-/*
-    for _, entry := range long_results {
-        fmt.Println(entry.Bowed.Id + fmt.Sprintf(" %f", entry.Euclid))
-    }
-*/
+    long_results_time := timer()
+    fmt.Println(fmt.Sprintf("\t%d",long_results_time))
+    fmt.Println(fmt.Sprintf("\tCount: %d",len(long_results)))
 
-
-
+    fmt.Println("")
+    fmt.Println(fmt.Sprintf("Accel:\t%d",coarse_results_time+fine_results_time))
+    fmt.Println(fmt.Sprintf("Naive:\t%d",long_results_time))
 }
