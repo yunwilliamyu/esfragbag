@@ -54,6 +54,8 @@ type DB struct {
 	writeBuf    *bytes.Buffer  // Temporary buffer for binary.
 	writingDone chan struct{}  // Indicate when writing is done.
 	entryChan   chan bow.Bowed // Concurrent writing.
+
+    file *os.File // Save the file that was opened
 }
 
 // Open opens a new BOW database for reading. In particular, all entries
@@ -88,6 +90,7 @@ func Open(fpath string) (*DB, error) {
 		return nil, err
 	}
 	db.fileBuf = bufio.NewReaderSize(tr, 1<<20)
+    db.file = dbf
 	return db, nil
 }
 
@@ -176,6 +179,7 @@ func Create(lib fragbag.Library, fpath string) (*DB, error) {
 		}
 		db.writingDone <- struct{}{}
 	}()
+    db.file = outf
 	return db, nil
 }
 
@@ -210,8 +214,8 @@ func (db *DB) Close() error {
 			return fmt.Errorf("Could not close bowdb archive: %s", err)
 		}
 	}
-	return nil
-	// return db.file.Close()
+	//return nil
+	return db.file.Close()
 }
 
 // String returns the name of the database.
