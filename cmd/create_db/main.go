@@ -169,7 +169,7 @@ func distanceFromSet (optDist distType, query bow.Bowed, set []bow.Bowed) (float
 }
 
 func main() {
-    runtime.GOMAXPROCS(12)
+    runtime.GOMAXPROCS(20)
 
     db, _ :=  bowdb.Open(fragmentLibraryLoc)
     db.ReadAll()
@@ -192,7 +192,7 @@ func main() {
 //        fmt.Println(center.Id + fmt.Sprintf(": %d",i))
 //    }
 
-    runtime.GOMAXPROCS(12)
+    runtime.GOMAXPROCS(20)
     fmt.Println(fmt.Sprintf("%d: Computing distances from cluster centers",time.Now().UTC().Unix()))
     db_codes := make([]int,len(db.Entries))
     distances := make([]float64,len(db.Entries))
@@ -207,7 +207,7 @@ func main() {
     for i := 0; i < len(db.Entries); i++ {
         <-sem
     }
-    runtime.GOMAXPROCS(12)
+    runtime.GOMAXPROCS(20)
 
     fmt.Println(fmt.Sprintf("%d: Writing out centers.cluster.db", time.Now().UTC().Unix()))
     db_centers, _ := bowdb.Create(db.Lib, "centers.cluster.db")
