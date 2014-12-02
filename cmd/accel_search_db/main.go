@@ -145,14 +145,14 @@ func main() {
     for _, center := range coarse_results {
         for _, entry := range db_slices[m[center.Id]] {
             var dist float64
-            result := newSearchResult(query,entry)
             switch metric {
                 case cosineDist:
-                    dist = result.Cosine
+                    dist = query.Bow.Cosine(entry.Bow)
                 case euclideanDist:
-                    dist = result.Euclid
+                    dist = query.Bow.Euclid(entry.Bow)
             }
             if dist <= float64(maxRadius) {
+                result := newSearchResult(query,entry)
                 fine_results = append(fine_results, result)
             }
         }
