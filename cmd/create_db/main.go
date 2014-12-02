@@ -8,6 +8,9 @@ import (
     //"strconv"
     "math/rand"
     "runtime"
+    "encoding/gob"
+    "bytes"
+    "os"
 
     "github.com/yunwilliamyu/fragbag/bow"
     "github.com/yunwilliamyu/fragbag/bowdb"
@@ -36,6 +39,7 @@ var (
     centerType = randomSelec
     kCenterAlg = ""
     maxRadius = -1
+    lasttime = time.Now().UTC().UnixNano()
 )
 
 
@@ -168,14 +172,36 @@ func distanceFromSet (optDist distType, query bow.Bowed, set []bow.Bowed) (float
     return minDist, bestResult, bestIndex
 }
 
+func enc_gob_ss_db(db_slices [][]bow.Bowed, name string) {
+    f, err := os.Create(name)
+    defer f.Close()
+    if err != nil {
+        log.Fatal("Create file error:", err)
+    }
+    var buf bytes.Buffer
+    enc := gob.NewEncoder(&buf)
+    err = enc.Encode(db_slices)
+    if err != nil {
+        log.Fatal("encode error:", err)
+    }
+    _, err = f.Write(buf.Bytes())
+}
+
+func timer() int64 {
+    old := lasttime
+    lasttime = time.Now().UTC().UnixNano()
+    return lasttime - old
+}
+
 func main() {
+    timer()
     runtime.GOMAXPROCS(20)
 
     db, _ :=  bowdb.Open(fragmentLibraryLoc)
     db.ReadAll()
     //Assert(err, "Could not open BOW database '%s'", path) 
     var kCenters []bow.Bowed
-    fmt.Println(fmt.Sprintf("%d: Generating cluster centers", time.Now().UTC().Unix()))
+    fmt.Println(fmt.Sprintf("%d: Generating cluster centers", timer()))
     if maxRadius > 0 {
         kCenters = maxRadiusKCenter (db.Entries, metric, maxRadius)
         numCenters = len(kCenters)
@@ -193,7 +219,7 @@ func main() {
 //    }
 
     runtime.GOMAXPROCS(20)
-    fmt.Println(fmt.Sprintf("%d: Computing distances from cluster centers",time.Now().UTC().Unix()))
+    fmt.Println(fmt.Sprintf("%d: Computing distances from cluster centers",timer()))
     db_codes := make([]int,len(db.Entries))
     distances := make([]float64,len(db.Entries))
     sem := make (chan empty, len(db.Entries))
@@ -209,44 +235,56 @@ func main() {
     }
     runtime.GOMAXPROCS(20)
 
-    fmt.Println(fmt.Sprintf("%d: Writing out centers.cluster.db", time.Now().UTC().Unix()))
+    fmt.Println(fmt.Sprintf("%d: Writing out centers.cluster.db", timer()))
     db_centers, _ := bowdb.Create(db.Lib, "centers.cluster.db")
     for _, center := range kCenters {
         db_centers.Add(center)
     }
     db_centers.Close()
 
-    fmt.Println(fmt.Sprintf("%d: Writing out individual cluster dbs",time.Now().UTC().Unix()))
-    for i := 0; i <len(kCenters); i++ {
-        curr_cluster, _ := bowdb.Create(db.Lib, kCenters[i].Id + ".cluster.db")
-        for j, entry := range db.Entries {
-            if (i==db_codes[j]) {
-                curr_cluster.Add(entry)
-            }
-        }
-        curr_cluster.Close()
+    fmt.Println(fmt.Sprintf("%d: Opening centers library",timer()))
+    db_centers2, _ :=  bowdb.Open("centers.cluster.db")
+    db_centers2.ReadAll()
+    var mr map[string]int
+    mr = make(map[string]int)
+    for i, center := range db_centers2.Entries {
+        mr[center.Id]=i
     }
 
-    fmt.Println(fmt.Sprintf("%d: computing cluster radii",time.Now().UTC().Unix()))
+    db_slices := make([][]bow.Bowed,numCenters,numCenters)
+
+    fmt.Println(fmt.Sprintf("%d: Computing individual cluster dbs",timer()))
+    for i := 0; i <len(kCenters); i++ {
+        //curr_cluster, _ := bowdb.Create(db.Lib, kCenters[i].Id + ".cluster.db")
+        //curr_cluster := db_slices[mr[kCenters[i].Id]]
+        for j, entry := range db.Entries {
+            if (i==db_codes[j]) {
+                db_slices[mr[kCenters[i].Id]] = append(db_slices[mr[kCenters[i].Id]],entry)
+            }
+        }
+        //curr_cluster.Close()
+    }
+
+    gobLoc := "clusters.gob"
+    fmt.Println(fmt.Sprintf("%d: Serializing gob",timer()))
+    enc_gob_ss_db(db_slices,gobLoc)
+
+    fmt.Println(fmt.Sprintf("%d: computing cluster radii",timer()))
     cluster_radii := make([]float64,numCenters)
     cluster_count := make([]int,numCenters)
     for j, _ := range db.Entries {
-//        fmt.Println(fmt.Sprintf("%d: %d",j,db_codes[j]))
-//        db_slices[db_codes[j]].Add(entry)
         if distances[j] > cluster_radii[db_codes[j]] {
             cluster_radii[db_codes[j]] = distances[j]
         }
         cluster_count[db_codes[j]]++
     }
 
-//    for _, slice := range db_slices {
-//        slice.Close()
-//    }
 
     for j, entry := range kCenters {
         fmt.Println(entry.Id + fmt.Sprintf("\t%f\t%d", cluster_radii[j], cluster_count[j] ))
     }
-    fmt.Println(fmt.Sprintf("%d: Finished!!",time.Now().UTC().Unix()))
+    fmt.Println(fmt.Sprintf("%d: Finished!!",timer()))
+
 
 
 
