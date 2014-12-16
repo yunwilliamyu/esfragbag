@@ -29,7 +29,7 @@ var (
     metric = cosineDist
     metricFlag = ""
     potentialTargetsLoc = ""
-    maxRadius = 0
+    maxRadius = 0.0
     clusterRadius = 10000
     lasttime = time.Now().UTC().UnixNano()
     gobLoc = "clusters.gob"
@@ -44,7 +44,7 @@ func init() {
     flag.StringVar(&searchQuery, "searchQuery", searchQuery, "the search query library as a bowdb")
     flag.StringVar(&metricFlag, "metricFlag", metricFlag, "Choice of metric to use; valid options are 'cosine' and 'euclidean'")
     flag.StringVar(&potentialTargetsLoc, "potentialTargets", potentialTargetsLoc, "the location of the full fragment library database")
-    flag.IntVar(&maxRadius, "maxRadius", maxRadius, "maximum radius to search in")
+    flag.Float64Var(&maxRadius, "maxRadius", maxRadius, "maximum radius to search in")
     flag.IntVar(&clusterRadius, "clusterRadius", clusterRadius, "maximum cluster radius in database")
 
     flag.Parse()
