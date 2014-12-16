@@ -38,7 +38,7 @@ var (
     metricFlag = ""
     centerType = randomSelec
     kCenterAlg = ""
-    maxRadius = -1
+    maxRadius = -1.0
     lasttime = time.Now().UTC().UnixNano()
 )
 
@@ -52,7 +52,7 @@ func init() {
     flag.IntVar(&numCenters, "numCenters",  numCenters, "the number of centers to choose for metric k-centers")
     flag.StringVar(&metricFlag, "metricFlag", metricFlag, "Choice of metric to use; valid options are 'cosine' and 'euclidean'")
     flag.StringVar(&kCenterAlg, "kCenterAlg", kCenterAlg, "Choice of which KCenter algorithm to use; valid options are 'metricApprox', 'random', and 'halfhalf'")
-    flag.IntVar(&maxRadius, "maxRadius", maxRadius, "maximum cluster radius as an int; if set, this will supercede numCenters")
+    flag.Float64Var(&maxRadius, "maxRadius", maxRadius, "maximum cluster radius as an float; if set, this will supercede numCenters")
 
     flag.Parse()
 
@@ -75,7 +75,7 @@ func init() {
 
 }
 
-func maxRadiusKCenter (db []bow.Bowed, optDist distType, r int) []bow.Bowed {
+func maxRadiusKCenter (db []bow.Bowed, optDist distType, r float64) []bow.Bowed {
     results := make([]bow.Bowed, 0, 1000)
     perm := rand.Perm(len(db))
     results = append(results, db[perm[0]])
