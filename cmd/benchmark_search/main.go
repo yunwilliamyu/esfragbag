@@ -85,6 +85,22 @@ func dec_gob_ss_db(name string) [][]bow.Bowed {
     return db_slices
 }
 
+func averageInt2F64(xs []int) float64 {
+    total := float64(0)
+    for _, x := range xs {
+        total += float64(x)
+    }
+    return total / float64(len(xs))
+}
+
+func averageInt642F64(xs []int64) float64 {
+    total := float64(0)
+    for _, x := range xs {
+        total += float64(x)
+    }
+    return total / float64(len(xs))
+}
+
 func main() {
     rand.Seed(1)
 
@@ -112,53 +128,62 @@ func main() {
     db, _ := bowdb.Open(potentialTargetsLoc)
     db.ReadAll()
 
+    repeatNum := 5 // How many times to repeat each run for timing purposes
     fmt.Println("Radius\tAccelCount\tLongCount\tAccel\tNaive\tSpeedup\tSensitivity")
-    for maxR := 0; maxR < 100; maxR++ {
+    for maxR := 0; maxR < 100; maxR=maxR+2 {
         maxRadius := 0.0
         if metric==cosineDist {
             maxRadius = float64(maxR) / 100.0
         } else {
             maxRadius = float64(maxR)
         }
-/*
-        var coarse_search = bowdb.SearchOptions{
-            Limit:  -1,
-            Min:    0.0,
-            Max:    (float64(clusterRadius)+float64(maxRadius)),
-            SortBy: sortBy,
-            Order:  bowdb.OrderAsc,
-        }
-        var fine_search = bowdb.SearchOptions{
-            Limit:  -1,
-            Min:    0.0,
-            Max:    float64(maxRadius),
-            SortBy: bowdb.SortByEuclid,
-            Order:  bowdb.OrderAsc,
-        }
-        */
-
         coarse_radius := float64(clusterRadius)+float64(maxRadius)
-        timer()
-        var coarse_results []bowdb.SearchResult
-        //coarse_results = db_centers.Search(coarse_search, query)
-        for _, entry := range db_centers.Entries {
-            var dist float64
-            switch metric {
-                case cosineDist:
-                    dist = query.Bow.Cosine(entry.Bow)
-                case euclideanDist:
-                    dist = query.Bow.Euclid(entry.Bow)
-            }
-            if dist <= coarse_radius {
-                result := newSearchResult(query,entry)
-                coarse_results = append(coarse_results, result)
-            }
-        }
-        coarse_results_time := timer()
 
-        var fine_results []bowdb.SearchResult
-        for _, center := range coarse_results {
-            for _, entry := range db_slices[m[center.Id]] {
+        accelCount := make([]int, repeatNum)
+        longCount := make([]int, repeatNum)
+        accelTime := make([]int64, repeatNum)
+        naiveTime := make([]int64, repeatNum)
+
+        for rep := 0; rep < repeatNum; rep++ {
+            timer()
+            var coarse_results []bowdb.SearchResult
+            //coarse_results = db_centers.Search(coarse_search, query)
+            for _, entry := range db_centers.Entries {
+                var dist float64
+                switch metric {
+                    case cosineDist:
+                        dist = query.Bow.Cosine(entry.Bow)
+                    case euclideanDist:
+                        dist = query.Bow.Euclid(entry.Bow)
+                }
+                if dist <= coarse_radius {
+                    result := newSearchResult(query,entry)
+                    coarse_results = append(coarse_results, result)
+                }
+            }
+            coarse_results_time := timer()
+
+            var fine_results []bowdb.SearchResult
+            for _, center := range coarse_results {
+                for _, entry := range db_slices[m[center.Id]] {
+                    var dist float64
+                    switch metric {
+                        case cosineDist:
+                            dist = query.Bow.Cosine(entry.Bow)
+                        case euclideanDist:
+                            dist = query.Bow.Euclid(entry.Bow)
+                    }
+                    if dist <= float64(maxRadius) {
+                        result := newSearchResult(query,entry)
+                        fine_results = append(fine_results, result)
+                    }
+                }
+            }
+            fine_results_time := timer()
+
+            var long_results []bowdb.SearchResult
+            //long_results = db.Search(fine_search, query)
+            for _, entry := range db.Entries {
                 var dist float64
                 switch metric {
                     case cosineDist:
@@ -168,42 +193,34 @@ func main() {
                 }
                 if dist <= float64(maxRadius) {
                     result := newSearchResult(query,entry)
-                    fine_results = append(fine_results, result)
+                    long_results = append(long_results, result)
                 }
             }
-        }
-        fine_results_time := timer()
 
-        var long_results []bowdb.SearchResult
-        //long_results = db.Search(fine_search, query)
-        for _, entry := range db.Entries {
-            var dist float64
-            switch metric {
-                case cosineDist:
-                    dist = query.Bow.Cosine(entry.Bow)
-                case euclideanDist:
-                    dist = query.Bow.Euclid(entry.Bow)
-            }
-            if dist <= float64(maxRadius) {
-                result := newSearchResult(query,entry)
-                long_results = append(long_results, result)
-            }
-        }
+            long_results_time := timer()
+            /*if (len(long_results)!=len(fine_results)) {
+                err := "Fine and long searches did not match."
+                fmt.Fprintf(os.Stderr, "error: %v\n", err)
+                fmt.Fprintf(os.Stderr, "Fine: %v\n", len(fine_results))
+                fmt.Fprintf(os.Stderr, "Long: %v\n", len(long_results))
+                os.Exit(1)
+            } */
+            long_count := len(long_results)
+            fine_count := len(fine_results)
+            accel_time := coarse_results_time + fine_results_time
 
-        long_results_time := timer()
-        /*if (len(long_results)!=len(fine_results)) {
-            err := "Fine and long searches did not match."
-            fmt.Fprintf(os.Stderr, "error: %v\n", err)
-            fmt.Fprintf(os.Stderr, "Fine: %v\n", len(fine_results))
-            fmt.Fprintf(os.Stderr, "Long: %v\n", len(long_results))
-            os.Exit(1)
-        } */
-        long_count := len(long_results)
-        fine_count := len(fine_results)
-        sensitivity := float64(fine_count) / float64(long_count)
-        accel_time := coarse_results_time + fine_results_time
-        speedup := float64(long_results_time)/float64(accel_time)
-        fmt.Println(fmt.Sprintf("%f\t%d\t%d\t%d\t%d\t%f\t%f",maxRadius,fine_count,long_count,accel_time,long_results_time,speedup,sensitivity))
+            accelCount[rep] = fine_count
+            longCount[rep] = long_count
+            accelTime[rep] = accel_time
+            naiveTime[rep] = long_results_time
+        }
+        accelCountAvg := averageInt2F64(accelCount)
+        naiveCountAvg := averageInt2F64(longCount)
+        accelTimeAvg := averageInt642F64(accelTime)
+        naiveTimeAvg := averageInt642F64(naiveTime)
+        sensitivity := accelCountAvg / naiveCountAvg
+        speedup := naiveTimeAvg / accelTimeAvg
+        fmt.Println(fmt.Sprintf("%f\t%f\t%f\t%f\t%f\t%f\t%f",maxRadius,accelCountAvg,naiveCountAvg,accelTimeAvg,naiveTimeAvg,speedup,sensitivity))
     }
 
 }
