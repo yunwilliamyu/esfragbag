@@ -32,6 +32,7 @@ var (
     clusterRadius = 10000.0
     lasttime = time.Now().UTC().UnixNano()
     gobLoc = "clusters.gob"
+    repeatNum = 10
 )
 
 
@@ -44,6 +45,7 @@ func init() {
     flag.StringVar(&metricFlag, "metricFlag", metricFlag, "Choice of metric to use; valid options are 'cosine' and 'euclidean'")
     flag.StringVar(&potentialTargetsLoc, "potentialTargets", potentialTargetsLoc, "the location of the full fragment library database")
     flag.Float64Var(&clusterRadius, "clusterRadius", clusterRadius, "maximum cluster radius in database")
+    flag.IntVar(&repeatNum, "repeatNum", repeatNum, "number of trials for each data point (default 10)")
 
     flag.Parse()
 
@@ -128,7 +130,7 @@ func main() {
     db, _ := bowdb.Open(potentialTargetsLoc)
     db.ReadAll()
 
-    repeatNum := 10 // How many times to repeat each run for timing purposes
+    //repeatNum := 10 // How many times to repeat each run for timing purposes
     fmt.Println("Radius\tAccelCount\tLongCount\tAccel\tNaive\tSpeedup\tSensitivity")
     for maxR := 0; maxR < 50; maxR=maxR+1 {
         maxRadius := 0.0
