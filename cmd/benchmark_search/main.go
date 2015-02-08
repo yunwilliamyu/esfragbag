@@ -131,7 +131,7 @@ func main() {
     db.ReadAll()
 
     //repeatNum := 10 // How many times to repeat each run for timing purposes
-    fmt.Println("Radius\tAccelCount\tLongCount\tAccel\tNaive\tSpeedup\tSensitivity")
+    fmt.Println("Radius\tAccelCount\tLongCount\tAccel\tNaive\tSpeedup\tSensitivity\tFineCandidates")
     for maxR := 0; maxR < 50; maxR=maxR+1 {
         maxRadius := 0.0
         if metric==cosineDist {
@@ -145,6 +145,8 @@ func main() {
         longCount := make([]int, repeatNum)
         accelTime := make([]int64, repeatNum)
         naiveTime := make([]int64, repeatNum)
+
+        fineCandidates := make([]int, repeatNum)
 
         for rep := 0; rep < repeatNum; rep++ {
             timer()
@@ -166,7 +168,9 @@ func main() {
             coarse_results_time := timer()
 
             var fine_results []bowdb.SearchResult
+            fine_candidates := 0
             for _, center := range coarse_results {
+                fine_candidates += len(db_slices[m[center.Id]])
                 for _, entry := range db_slices[m[center.Id]] {
                     var dist float64
                     switch metric {
@@ -215,6 +219,7 @@ func main() {
             longCount[rep] = long_count
             accelTime[rep] = accel_time
             naiveTime[rep] = long_results_time
+            fineCandidates[rep] = fine_candidates
         }
         accelCountAvg := averageInt2F64(accelCount)
         naiveCountAvg := averageInt2F64(longCount)
@@ -222,7 +227,8 @@ func main() {
         naiveTimeAvg := averageInt642F64(naiveTime)
         sensitivity := accelCountAvg / naiveCountAvg
         speedup := naiveTimeAvg / accelTimeAvg
-        fmt.Println(fmt.Sprintf("%f\t%f\t%f\t%f\t%f\t%f\t%f",maxRadius,accelCountAvg,naiveCountAvg,accelTimeAvg,naiveTimeAvg,speedup,sensitivity))
+        fineSearchCount := averageInt2F64(fineCandidates)
+        fmt.Println(fmt.Sprintf("%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f",maxRadius,accelCountAvg,naiveCountAvg,accelTimeAvg,naiveTimeAvg,speedup,sensitivity,fineSearchCount))
     }
 
 }
