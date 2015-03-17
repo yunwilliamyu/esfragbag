@@ -12,8 +12,8 @@ import (
     "encoding/gob"
     "math/rand"
 
-    "github.com/yunwilliamyu/fragbag/bow"
-    "github.com/yunwilliamyu/fragbag/bowdb"
+    "github.com/yunwilliamyu/esfragbag/bow"
+    "github.com/yunwilliamyu/esfragbag/bowdb"
 )
 
 type distType int

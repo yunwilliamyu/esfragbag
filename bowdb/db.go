@@ -15,8 +15,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/yunwilliamyu/fragbag"
-	"github.com/yunwilliamyu/fragbag/bow"
+	"github.com/yunwilliamyu/esfragbag"
+	"github.com/yunwilliamyu/esfragbag/bow"
 )
 
 const (
