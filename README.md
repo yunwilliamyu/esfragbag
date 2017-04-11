@@ -1,20 +1,11 @@
-Frags is a fast implementation of FragBag in Go from Budowski-Tal, Nov and 
-Kolodny's 2010 paper in PNAS. This implementation also includes experimental
-support for handling sequence fragments generated from structural fragment 
-libraries.
-
-This repository also contains several experiments.
-
-## Documentation
-
-http://godoc.org/github.com/TuftsBCB/frags
-
+esfragbag is an accelerated version of the FragBag implementation by Andrew
+Gallant, which can be found at github.com/TuftsBCB/fragbag
 
 ## Installation
 
 Once you have [Go installed](http://golang.org/doc/install), just run
 
-    go get github.com/TuftsBCB/frags
+    go get github.com/yunwilliamyu/esfragbag
 
 to install the package.
 
