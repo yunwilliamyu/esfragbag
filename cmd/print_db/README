@@ -1,0 +1,1 @@
+~/go/src/github.com/yunwilliamyu/fragbag/cmd/print_db/print_db -fragLib /mnt/work/ndaniels/fragbag/pdb-20141031.bowdb >> temp.txt
