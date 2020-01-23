@@ -55,7 +55,7 @@ type DB struct {
 	writingDone chan struct{}  // Indicate when writing is done.
 	entryChan   chan bow.Bowed // Concurrent writing.
 
-    file *os.File // Save the file that was opened
+	file *os.File // Save the file that was opened
 }
 
 // Open opens a new BOW database for reading. In particular, all entries
@@ -90,7 +90,7 @@ func Open(fpath string) (*DB, error) {
 		return nil, err
 	}
 	db.fileBuf = bufio.NewReaderSize(tr, 1<<20)
-    db.file = dbf
+	db.file = dbf
 	return db, nil
 }
 
@@ -179,7 +179,7 @@ func Create(lib fragbag.Library, fpath string) (*DB, error) {
 		}
 		db.writingDone <- struct{}{}
 	}()
-    db.file = outf
+	db.file = outf
 	return db, nil
 }
 
