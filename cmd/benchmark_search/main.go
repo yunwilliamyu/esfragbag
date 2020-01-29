@@ -57,6 +57,12 @@ func init() {
     }
 }
 
+type m_index_table struct {
+    Anchors []bow.Bowed
+    Table map[int64][]int
+}
+
+
 func newSearchResult(query, entry bow.Bowed) bowdb.SearchResult {
     return bowdb.SearchResult{
         Bowed:  entry,
@@ -70,6 +76,23 @@ func timer() int64 {
     lasttime = time.Now().UTC().UnixNano()
     return lasttime - old
 }
+
+func dec_gob_mindex(name string) m_index_table {
+    buf_bytes, err := ioutil.ReadFile(name)
+    if err != nil {
+        log.Fatal("Open file error:", err)
+    }
+    var buf bytes.Buffer
+    buf.Write(buf_bytes)
+    var mindex m_index_table
+    dec := gob.NewDecoder(&buf)
+    err = dec.Decode(&mindex)
+    if err != nil {
+        log.Fatal("decode error:", err)
+    }
+    return mindex
+}
+
 
 func dec_gob_ss_db(name string) [][]bow.Bowed {
     buf_bytes, err := ioutil.ReadFile(name)

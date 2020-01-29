@@ -16,13 +16,7 @@ import (
     "github.com/yunwilliamyu/esfragbag/bowdb"
 )
 
-type distType int
 type empty struct{}
-
-const (
-    cosineDist distType = iota
-    euclideanDist = iota
-)
 
 type algType int
 const (
@@ -33,7 +27,7 @@ const (
 
 var (
     fragmentLibraryLoc = ""
-    metric = cosineDist
+    metric = bowdb.CosineDist
     numCenters = -1
     metricFlag = ""
     centerType = randomSelec
@@ -57,10 +51,10 @@ func init() {
     flag.Parse()
 
     if metricFlag == "cosine" {
-        metric = cosineDist
+        metric = bowdb.CosineDist
     }
     if metricFlag == "euclidean" {
-        metric = euclideanDist
+        metric = bowdb.EuclideanDist
     }
 
     if kCenterAlg == "metricApprox" {
@@ -75,7 +69,7 @@ func init() {
 
 }
 
-func maxRadiusKCenter (db []bow.Bowed, optDist distType, r float64) []bow.Bowed {
+func maxRadiusKCenter (db []bow.Bowed, optDist bowdb.DistType, r float64) []bow.Bowed {
     results := make([]bow.Bowed, 0, 1000)
     perm := rand.Perm(len(db))
     results = append(results, db[perm[0]])
@@ -90,7 +84,7 @@ func maxRadiusKCenter (db []bow.Bowed, optDist distType, r float64) []bow.Bowed 
 }
 
 // Outputs k random objects from the set
-func randomKCenter(db []bow.Bowed, optDist distType, k int) []bow.Bowed {
+func randomKCenter(db []bow.Bowed, optDist bowdb.DistType, k int) []bow.Bowed {
     results := make([]bow.Bowed, k)
     perm := rand.Perm(len(db))
     for i := 0; i<k; i++ {
@@ -102,7 +96,7 @@ func randomKCenter(db []bow.Bowed, optDist distType, k int) []bow.Bowed {
 // Outputs k additional cluster centers for a bowdb using the greedy metric k-center
 // approximation algorithm of iteratively choosing the furthest away point
 // Starts from start_centers
-func metricKCenter(db []bow.Bowed, optDist distType, k int, start_centers []bow.Bowed) []bow.Bowed {
+func metricKCenter(db []bow.Bowed, optDist bowdb.DistType, k int, start_centers []bow.Bowed) []bow.Bowed {
     results := make([]bow.Bowed, k + len(start_centers))
     var start int
     if len(start_centers)==0 {
@@ -118,7 +112,7 @@ func metricKCenter(db []bow.Bowed, optDist distType, k int, start_centers []bow.
 }
 
 // Compute the point that's the maximum distance from any center
-func newKCenter(db []bow.Bowed, optDist distType, prevKCenters []bow.Bowed) bow.Bowed {
+func newKCenter(db []bow.Bowed, optDist bowdb.DistType, prevKCenters []bow.Bowed) bow.Bowed {
     var bestResult bow.Bowed
     distances := make([]float64,len(db))
     sem := make(chan empty, len(db))
@@ -143,7 +137,7 @@ func newKCenter(db []bow.Bowed, optDist distType, prevKCenters []bow.Bowed) bow.
 }
 
 // Computes the distance of a point from a set, the nearest set point, and the index of that point
-func distanceFromSet (optDist distType, query bow.Bowed, set []bow.Bowed) (float64, bow.Bowed, int) {
+func distanceFromSet (optDist bowdb.DistType, query bow.Bowed, set []bow.Bowed) (float64, bow.Bowed, int) {
     distances := make([]float64,len(set))
     var bestResult bow.Bowed
     var bestIndex int
@@ -151,12 +145,12 @@ func distanceFromSet (optDist distType, query bow.Bowed, set []bow.Bowed) (float
     for i, _ := range set {
         xi := set[i]
         switch optDist {
-            case cosineDist:
+            case bowdb.CosineDist:
                 distances[i] = xi.Bow.Cosine(query.Bow)
-            case euclideanDist:
+            case bowdb.EuclideanDist:
                 distances[i] = xi.Bow.Euclid(query.Bow)
             default:
-                panic(fmt.Sprintf("Unrecognized distType value: %d", optDist))
+                panic(fmt.Sprintf("Unrecognized bowdb.DistType value: %d", optDist))
         }
     }
 

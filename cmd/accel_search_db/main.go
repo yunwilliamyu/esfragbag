@@ -7,7 +7,6 @@ import (
     "time"
     "bytes"
     "io/ioutil"
-    //"strconv"
     "encoding/gob"
     "math/rand"
 
@@ -16,23 +15,17 @@ import (
 
 )
 
-type distType int
-
-const (
-    cosineDist distType = iota
-    euclideanDist = iota
-)
-
 var (
     fragmentLibraryLoc = ""
     searchQuery = ""
-    metric = cosineDist
+    metric = bowdb.CosineDist
     metricFlag = ""
     potentialTargetsLoc = ""
     maxRadius = 0.0
     clusterRadius = 10000
     lasttime = time.Now().UTC().UnixNano()
     gobLoc = "clusters.gob"
+    mindexLoc = "mindex.gob"
 )
 
 
@@ -41,6 +34,7 @@ func init() {
 
     flag.StringVar(&fragmentLibraryLoc, "fragLib", fragmentLibraryLoc, "the location of the fragment library centers")
     flag.StringVar(&gobLoc, "clusters", gobLoc, "the location of the serialized clusters database")
+    flag.StringVar(&mindexLoc, "mIndex", mindexLoc, "the location of the mIndex of clusters")
     flag.StringVar(&searchQuery, "searchQuery", searchQuery, "the search query library as a bowdb")
     flag.StringVar(&metricFlag, "metricFlag", metricFlag, "Choice of metric to use; valid options are 'cosine' and 'euclidean'")
     flag.StringVar(&potentialTargetsLoc, "potentialTargets", potentialTargetsLoc, "the location of the full fragment library database")
@@ -50,10 +44,10 @@ func init() {
     flag.Parse()
 
     if metricFlag == "cosine" {
-        metric = cosineDist
+        metric = bowdb.CosineDist
     }
     if metricFlag == "euclidean" {
-        metric = euclideanDist
+        metric = bowdb.EuclideanDist
     }
 }
 
@@ -70,6 +64,12 @@ func timer() int64 {
     lasttime = time.Now().UTC().UnixNano()
     return lasttime - old
 }
+
+type m_index_table struct {
+    Anchors []bow.Bowed
+    Table map[int64][]bow.Bowed
+}
+
 
 func dec_gob_ss_db(name string) [][]bow.Bowed {
     buf_bytes, err := ioutil.ReadFile(name)
@@ -103,7 +103,8 @@ func main() {
     fmt.Println(fmt.Sprintf("\t%d",timer()))
 
     fmt.Println("Unserializing gob")
-    db_slices := dec_gob_ss_db("clusters.gob")
+    db_slices := dec_gob_ss_db(gobLoc)
+    mindex := bowdb.Dec_gob_mindex(mindexLoc)
     var m map[string]int
     m = make(map[string]int)
     for i, center := range db_centers.Entries {
@@ -112,10 +113,10 @@ func main() {
     fmt.Println(fmt.Sprintf("\t%d",timer()))
 
     sortBy := bowdb.SortByEuclid
-    if metric == cosineDist {
+    if metric == bowdb.CosineDist {
         sortBy = bowdb.SortByCosine
     }
-
+/*
     var coarse_search = bowdb.SearchOptions{
         Limit:  -1,
         Min:    0.0,
@@ -123,19 +124,45 @@ func main() {
         SortBy: sortBy,
         Order:  bowdb.OrderAsc,
     }
+    */
 
     var fine_search = bowdb.SearchOptions{
         Limit:  -1,
         Min:    0.0,
         Max:    float64(maxRadius),
-        SortBy: bowdb.SortByEuclid,
+        SortBy: sortBy,
         Order:  bowdb.OrderAsc,
     }
 
-    fmt.Println("Computing coarse results")
-    var coarse_results []bowdb.SearchResult
-    coarse_results = db_centers.Search(coarse_search, query)
+    fmt.Println("Computing mindex hash")
+    var coarse_results []bow.Bowed
+
     coarse_results_time := timer()
+    //a_num := len(mindex.Anchors)
+    i := len(mindex.Anchors)-1
+    not_break := true
+    fmt.Println("Computing coarse results")
+    for not_break {
+        var candidates []bow.Bowed
+        if i>0 {
+            h := bowdb.MIndexHash(mindex.Anchors, query, metric)
+            //combine_reverse := bowdb.MergeUnique(mindex.Table[i][h[i]], mindex.Table[a_num + i][h[a_num + i]])
+            combine_reverse := mindex.Table[i][h[i]]
+            //combine_reverse = append(combine_reverse, mindex.Table[a_num + i][h[a_num + 1]]...)
+
+            candidates = bowdb.IndexBySlice(mindex.Elements, combine_reverse)
+        } else {
+            candidates = mindex.Elements
+            not_break = false
+        }
+        candidates_filtered := bowdb.RangeQuery(float64(clusterRadius)+float64(maxRadius), query, candidates, metric)
+        fmt.Println(fmt.Sprintf("\tlevel %d, %d candidates, %d filtered", i, len(candidates), len(candidates_filtered)) )
+        if len(candidates_filtered)==len(coarse_results) {
+            not_break = false
+        }
+        coarse_results = candidates_filtered
+        i = i - 1
+    }
     fmt.Println(fmt.Sprintf("\t%d",coarse_results_time))
     fmt.Println(fmt.Sprintf("\tCount: %d",len(coarse_results)))
 
@@ -146,9 +173,9 @@ func main() {
         for _, entry := range db_slices[m[center.Id]] {
             var dist float64
             switch metric {
-                case cosineDist:
+                case bowdb.CosineDist:
                     dist = query.Bow.Cosine(entry.Bow)
-                case euclideanDist:
+                case bowdb.EuclideanDist:
                     dist = query.Bow.Euclid(entry.Bow)
             }
             if dist <= float64(maxRadius) {
