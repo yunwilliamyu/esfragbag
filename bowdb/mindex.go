@@ -43,19 +43,37 @@ func array2scalar(array []int) int64 {
 // Argsort implementation from
 // https://stackoverflow.com/questions/31141202/get-the-indices-of-the-array-after-sorting-in-golang
 type Slice struct {
-    sort.Float64Slice
-    idx []int
+    sort.Interface
+    Idx []int
 }
 
 func (s Slice) Swap(i, j int) {
-    s.Float64Slice.Swap(i, j)
-    s.idx[i], s.idx[j] = s.idx[j], s.idx[i]
+    s.Interface.Swap(i, j)
+    s.Idx[i], s.Idx[j] = s.Idx[j], s.Idx[i]
 }
 
 func NewSlice(n ...float64) *Slice {
-	s := &Slice{Float64Slice: sort.Float64Slice(n), idx: make([]int, len(n))}
-	for i := range s.idx {
-		s.idx[i] = i
+	s := &Slice{Interface: sort.Float64Slice(n), Idx: make([]int, len(n))}
+	for i := range s.Idx {
+		s.Idx[i] = i
+	}
+	return s
+}
+
+type SliceI struct {
+    sort.IntSlice
+    Idx []int
+}
+
+func (s SliceI) Swap(i, j int) {
+    s.IntSlice.Swap(i, j)
+    s.Idx[i], s.Idx[j] = s.Idx[j], s.Idx[i]
+}
+
+func NewSliceI(n ...int) *SliceI {
+	s := &SliceI{IntSlice: sort.IntSlice(n), Idx: make([]int, len(n))}
+	for i := range s.Idx {
+		s.Idx[i] = i
 	}
 	return s
 }
@@ -64,7 +82,7 @@ func NewSlice(n ...float64) *Slice {
 
 // Creates an metric-index hash of x, based on anchor points given in db
 // Note that len(db) <= 16
-func MIndexHash(db []bow.Bowed, x bow.Bowed, optDist DistType) []int64 {
+func MIndexHash(db []bow.Bowed, x bow.Bowed, optDist DistType) []int {
     dists := make([]float64, len(db))
     for i := 0; i<len(db); i++ {
         xi := db[i]
@@ -79,21 +97,9 @@ func MIndexHash(db []bow.Bowed, x bow.Bowed, optDist DistType) []int64 {
     }
 	s := NewSlice(sort.Float64Slice(dists)...)
 	sort.Sort(s)
-    s_idx := make([]int, len(s.idx))
-    // Forward
-    copy(s_idx, s.idx)
-    full_hash := make([]int64, len(db)*2)
-    for j :=0; j<len(db); j++ {
-        s_idx = remove_val(s_idx, len(db)-j)
-        full_hash[len(db) - j - 1] = array2scalar(s_idx)
-    }
-    // Reverse
-    for j :=0; j<len(db); j++ {
-        s.idx = remove_val(s.idx, j-1)
-        full_hash[2*len(db) - j - 1] = array2scalar(s.idx)
-    }
-    //fmt.Println(s.Float64Slice, s.idx)
-    return full_hash
+    s_Idx := make([]int, len(s.Idx))
+    copy(s_Idx, s.Idx)
+    return s_Idx
 }
 
 // Removes first instance of val in slice
@@ -117,26 +123,30 @@ func remove_val(slice []int, val int) []int {
 
 
 // Creates a hash table indexed by the m-index into all cluster centers that match
-func MIndexTable(db []bow.Bowed, anchors []bow.Bowed, optDist DistType) []map[int64][]int {
-    table := make([]map[int64][]int, len(anchors)*2)
-    for j:=0; j<len(anchors)*2; j++ {
-        table[j] = make(map[int64][]int)
-    }
+func MIndexTable(db []bow.Bowed, anchors []bow.Bowed, optDist DistType) map[int64][]int {
+    table := make(map[int64][]int)
 
     for i, xi := range(db) {
         full_hash := MIndexHash(anchors, xi, optDist)
-        for j:=0; j <len(anchors)*2; j++ {
-            h := full_hash[j]
-            table[j][h] = append(table[j][h], i)
-        }
+        h := array2scalar(full_hash)
+        table[h] = append(table[h], i)
     }
     return table
+}
+
+func MIndexHashes(db []bow.Bowed, anchors[]bow.Bowed, optDist DistType) [][]int {
+    hashes := make([][]int, len(db))
+    for i, xi := range(db) {
+        full_hash := MIndexHash(anchors, xi, optDist)
+        hashes[i] = full_hash
+    }
+    return hashes
 }
 
 type M_index_table struct {
     Anchors []bow.Bowed
     Elements []bow.Bowed
-    Table []map[int64][]int
+    Hashes [][]int
 }
 
 func Enc_gob_mindex(mindex M_index_table, name string) {
@@ -188,6 +198,17 @@ func RangeQuery(r float64, query bow.Bowed, db []bow.Bowed, metric DistType) []b
     return results
 }
 
+// Find indexes equal to a value
+func ExactIndexes(r int, db []int, start int) []int {
+    indexes := make([]int, 0, len(db))
+    for i, v := range db{
+        if v == r {
+            indexes = append(indexes, i)
+        }
+    }
+    return indexes
+}
+
 // Index by slice. i.e. give a new db with candidates given by the indexes
 func IndexBySlice(db []bow.Bowed, indexes []int) []bow.Bowed {
     candidates := make([]bow.Bowed, len(indexes))
@@ -219,3 +240,73 @@ func MergeUnique(A []int, B []int) []int {
     }
     return C
 }
+
+
+// Kendall-Tau distance between two permutations (note, the permutations must be 0-indexed and the same length)
+func KendallTau(A []int, B []int) (inv int) {
+    key := make([]int, len(A))
+    for i, v := range A {
+        key[v]=i
+    }
+    renamedB := make([]int, len(B))
+    for i, v := range B{
+        renamedB[i] = key[v]
+    }
+    _, inv = mergeSort(renamedB)
+    return
+}
+
+func mergeSort(items []int) (list []int, inv int) {
+    inv = 0
+    var num = len(items)
+    if num == 1 {
+        return items, inv
+    }
+    middle := int(num/2)
+    var (
+        left = make([]int, middle)
+        right = make([]int, num-middle)
+    )
+    for i := 0; i<num; i++ {
+        if i < middle {
+            left[i] = items[i]
+        } else {
+            right[i-middle] = items[i]
+        }
+    }
+    list_left, inv_left := mergeSort(left)
+    list_right, inv_right := mergeSort(right)
+    //list := merge(mergeSort(left), mergeSort(right))
+    list, inv_center := merge(list_left, list_right)
+    inv = inv_left + inv_right + inv_center
+    return
+}
+
+func merge(left, right []int) (result []int, inv int) {
+    result = make([]int, len(left) + len(right))
+    inv = 0
+    i := 0
+    for len(left) > 0 && len(right) > 0 {
+        if left[0] < right[0] {
+            result[i] = left[0]
+            left = left[1:]
+        } else {
+            result[i] = right[0]
+            right = right[1:]
+            inv = inv + len(left)
+        }
+        i++
+    }
+
+    for j := 0; j<len(left); j++ {
+        result[i] = left[j]
+        i++
+    }
+    for j := 0; j<len(right); j++ {
+        result[i] = right[j]
+        i++
+    }
+    return
+}
+
+

@@ -3,6 +3,7 @@ package main
 import (
     "flag"
     "log"
+    "sort"
     "fmt"
     "time"
     "bytes"
@@ -139,30 +140,51 @@ func main() {
 
     coarse_results_time := timer()
     //a_num := len(mindex.Anchors)
-    i := len(mindex.Anchors)-1
     not_break := true
     fmt.Println("Computing coarse results")
+    h := bowdb.MIndexHash(mindex.Anchors, query, metric)
+    kt_dists := make([]int, len(mindex.Elements))
+    for i, v := range mindex.Hashes {
+        kt_dists[i] = bowdb.KendallTau(h, v)
+    }
+	s := bowdb.NewSliceI(sort.IntSlice(kt_dists)...)
+	sort.Sort(s)
+    r := 0
+    i := 0
+    start := 0
+    for not_break {
+        for s.IntSlice[i] == r {
+            i = i + 1
+        }
+        candidates := bowdb.IndexBySlice(mindex.Elements, s.Idx[start:i])
+        start = i
+        candidates_filtered := bowdb.RangeQuery(float64(clusterRadius)+float64(maxRadius), query, candidates, metric)
+        fmt.Println(fmt.Sprintf("\tlevel %d, %d candidates, %d filtered", r, len(candidates), len(candidates_filtered)) )
+        if len(candidates_filtered)<len(coarse_results)/25 {
+            if len(coarse_results)>0 {
+                not_break = false
+            }
+        }
+        coarse_results = append(coarse_results, candidates_filtered...)
+        r = r+1
+    }
+    /*
+    i := 0
     for not_break {
         var candidates []bow.Bowed
-        if i>0 {
-            h := bowdb.MIndexHash(mindex.Anchors, query, metric)
-            //combine_reverse := bowdb.MergeUnique(mindex.Table[i][h[i]], mindex.Table[a_num + i][h[a_num + i]])
-            combine_reverse := mindex.Table[i][h[i]]
-            //combine_reverse = append(combine_reverse, mindex.Table[a_num + i][h[a_num + 1]]...)
-
-            candidates = bowdb.IndexBySlice(mindex.Elements, combine_reverse)
-        } else {
-            candidates = mindex.Elements
-            not_break = false
-        }
+        indexes := bowdb.ExactIndexes(i, kt_dists)
+        candidates = bowdb.IndexBySlice(mindex.Elements, indexes)
         candidates_filtered := bowdb.RangeQuery(float64(clusterRadius)+float64(maxRadius), query, candidates, metric)
         fmt.Println(fmt.Sprintf("\tlevel %d, %d candidates, %d filtered", i, len(candidates), len(candidates_filtered)) )
-        if len(candidates_filtered)==len(coarse_results) {
-            not_break = false
+        if len(candidates_filtered)<len(coarse_results)/100 {
+            if len(coarse_results)>0 {
+                not_break = false
+            }
         }
-        coarse_results = candidates_filtered
-        i = i - 1
+        coarse_results = append(coarse_results, candidates_filtered...)
+        i = i+1
     }
+    */
     fmt.Println(fmt.Sprintf("\t%d",coarse_results_time))
     fmt.Println(fmt.Sprintf("\tCount: %d",len(coarse_results)))
 

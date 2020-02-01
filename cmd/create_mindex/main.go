@@ -37,8 +37,8 @@ var (
 
 
 func init() {
-    rand.Seed(time.Now().UTC().UnixNano())
-    //rand.Seed(314159)
+    //rand.Seed(time.Now().UTC().UnixNano())
+    rand.Seed(314159)
 
     log.SetFlags(0)
 
@@ -78,24 +78,9 @@ func main() {
     }
     fmt.Println(fmt.Sprintf("%d: Randomly selecting %d anchor points", timer(), numAnchors))
     anchorPoints = bowdb.RandomKSample(db.Entries, metric, numAnchors)
-    //var start_centers []bow.Bowed
-    //anchorPoints2 = metricKCenter(anchorPoints, metric, numAnchors, start_centers)
-    //for i, center := range anchorPoints {
-    //    fmt.Println(center.Id + fmt.Sprintf(": %d",i))
-    //}
-    //anchorPoints3 = anchorPoints[:numAnchors]
-    //fmt.Println(mIndexHash(anchorPoints3, db.Entries[1000], metric))
-    //var table []map[int64][]int
-    table := bowdb.MIndexTable(db.Entries, anchorPoints, metric)
-    //table mIndexTable(db.Entries, anchorPoints, metric)
-    for _, v := range table {
-        for _, v2 := range v{
-            fmt.Printf("%d", len(v2))
-            fmt.Printf(" ")
-        }
-        fmt.Printf("\n")
-    }
-    table_gob := bowdb.M_index_table{anchorPoints, db.Entries, table}
+    hashes := bowdb.MIndexHashes(db.Entries, anchorPoints, metric)
+    fmt.Printf("\n")
+    table_gob := bowdb.M_index_table{anchorPoints, db.Entries, hashes}
     gobLoc := "mindex.gob"
     fmt.Println(fmt.Sprintf("%d: Serializing gob for mindex",timer()))
     bowdb.Enc_gob_mindex(table_gob,gobLoc)
